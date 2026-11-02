@@ -1,0 +1,731 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Google Analytics 学习台</title>
+<meta name="description" content="用 Fieldnote 笔记本商店的案例，练习 GA4 的事件、指标、渠道和周报诊断。不连接 Google 账号。">
+<meta property="og:title" content="Google Analytics 学习台">
+<meta property="og:description" content="用一个笔记本商店的案例，练习 GA4 的事件、指标、渠道和一份会话涨了、购买没涨的周报。">
+<style>
+  :root {
+    --paper: #f3efe6;
+    --ink: #1c1915;
+    --muted: #5e584e;
+    --line: #e0d6c6;
+    --green: #0e5c45;
+    --green-soft: #e5f2ec;
+    --amber: #8a4b08;
+    --amber-soft: #f8efe3;
+    --white: #fffcf7;
+    --last: #c8c0b2;
+  }
+  * { box-sizing: border-box; }
+  html { background: var(--paper); }
+  body {
+    margin: 0 auto;
+    max-width: 920px;
+    padding: 32px 20px 80px;
+    color: var(--ink);
+    font: 16px/1.55 "PingFang SC", "Hiragino Sans GB", "Noto Sans SC", "Microsoft YaHei", sans-serif;
+  }
+  h1 { font-size: 28px; line-height: 1.25; font-weight: 650; margin: 0 0 8px; }
+  h2 { font-size: 20px; line-height: 1.3; font-weight: 650; margin: 0 0 8px; }
+  h3 { font-size: 16px; line-height: 1.4; font-weight: 650; margin: 8px 0; }
+  p { margin: 0 0 12px; }
+  .lede { color: var(--muted); }
+  .fine { color: var(--muted); font-size: 13px; }
+  a { color: var(--green); }
+  .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin: 20px 0; }
+  .stats b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; font-weight: 650; }
+  .stats span { color: var(--muted); font-size: 13px; }
+  .nav {
+    position: sticky;
+    top: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 16px;
+    background: rgba(243, 239, 230, 0.96);
+    z-index: 2;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  button { font: inherit; color: inherit; }
+  .nav button {
+    background: none;
+    border: none;
+    border-bottom: 2px solid transparent;
+    padding: 6px 0;
+    color: var(--muted);
+    cursor: pointer;
+  }
+  .nav button[aria-current="true"] { color: var(--ink); border-bottom-color: var(--green); }
+  section { padding-top: 22px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 8px 0 16px; }
+  th, td { text-align: left; padding: 8px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-size: 12px; font-weight: 650; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+  tr.hot td:first-child { color: var(--amber); font-weight: 650; }
+  .prompt { font-weight: 650; margin-bottom: 4px; }
+  .choice {
+    display: block;
+    width: 100%;
+    text-align: left;
+    margin-top: 8px;
+    padding: 10px 12px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--white);
+    cursor: pointer;
+  }
+  .choice[aria-pressed="true"] { background: var(--ink); color: var(--white); border-color: var(--ink); }
+  .callout { margin-top: 10px; padding: 10px 12px; background: var(--green-soft); border-left: 3px solid var(--green); }
+  .callout.warn { background: var(--amber-soft); border-left-color: var(--amber); }
+  .callout b { display: block; margin-bottom: 4px; }
+  .callout p { margin: 0; }
+  .note { margin-top: 10px; padding: 10px 12px; background: var(--white); border-left: 3px solid var(--line); }
+  hr { border: none; border-top: 1px solid var(--line); margin: 18px 0; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin: 8px 0 12px; }
+  .chip {
+    border: 1px solid var(--line);
+    background: var(--white);
+    border-radius: 999px;
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  .chip[aria-pressed="true"] { background: var(--ink); color: var(--white); border-color: var(--ink); }
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 12px 0; }
+  label { display: block; color: var(--muted); font-size: 13px; margin-bottom: 4px; }
+  input, select {
+    font: inherit;
+    width: 100%;
+    padding: 8px 10px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: var(--white);
+    color: var(--ink);
+  }
+  .event select { max-width: 240px; width: 220px; }
+  .url { word-break: break-all; font-family: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace; font-size: 13px; }
+  .sessions { display: grid; grid-template-columns: repeat(6, 1fr); gap: 8px; margin: 12px 0; }
+  .cell { padding: 8px; border: 1px solid var(--line); border-radius: 6px; background: var(--white); }
+  .cell.on { background: var(--green-soft); }
+  .cell.off { background: var(--amber-soft); }
+  .cell b { display: block; font-size: 13px; }
+  .cell span { display: block; color: var(--muted); font-size: 12px; }
+  .grow { display: grid; grid-template-columns: 88px 1fr; gap: 8px 12px; align-items: center; margin: 6px 0; }
+  .grow-label { font-size: 13px; }
+  .grow-line { display: flex; align-items: center; gap: 8px; margin: 3px 0; }
+  .grow-track { flex: 1; height: 8px; background: #efeae1; }
+  .grow-bar { height: 8px; background: var(--last); }
+  .grow-bar.now { background: var(--green); }
+  .grow-n { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 52px; }
+  .legend { font-size: 13px; color: var(--muted); }
+  .swatch { display: inline-block; width: 10px; height: 10px; margin: 0 4px 0 10px; vertical-align: -1px; }
+  .swatch.last { background: var(--last); margin-left: 0; }
+  .swatch.now { background: var(--green); }
+  .rate-track { position: relative; flex: 1; height: 10px; background: #efeae1; }
+  .rate-track .bar { height: 10px; background: var(--green); }
+  .rate-track .mark { position: absolute; top: -4px; bottom: -4px; width: 1px; background: var(--amber); }
+  .metric-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 12px 0; }
+  .metric-stats b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+  .metric-stats span { color: var(--muted); font-size: 12px; }
+  @media (max-width: 720px) {
+    .stats, .metric-stats { grid-template-columns: 1fr 1fr; }
+    .fields, .sessions { grid-template-columns: 1fr 1fr; }
+    .sessions { grid-template-columns: repeat(3, 1fr); }
+    .grow { grid-template-columns: 72px 1fr; }
+  }
+</style>
+</head>
+<body>
+  <p class="fine">GA4 · 案例 Fieldnote · 售价 $48</p>
+  <h1>Google Analytics 学习台</h1>
+  <p class="lede">一本卖到美国的笔记本，媒体资源里只有一条网站数据流。六个环节按 GA4 的顺序往下走：数据是什么，动作怎么命名，指标怎么算，渠道怎么认，最后读一份会话涨了、购买没涨的周报。</p>
+  <p class="fine">不连接 Google 账号。指标按 GA4 的公开定义计算；默认渠道组这里用的是缩短后的教学规则。进度存在这台浏览器里，换一台设备会重新开始。</p>
+  <div class="stats">
+    <div><b id="done">0/6</b><span>已通过环节</span></div>
+    <div><b id="event-points">0/5</b><span>漏斗判断正确</span></div>
+    <div><b id="quiz-points">0/8</b><span>自测得分</span></div>
+  </div>
+  <nav class="nav">
+    <button type="button" data-goto="map">1 模型</button>
+    <button type="button" data-goto="events">2 事件</button>
+    <button type="button" data-goto="metrics">3 指标</button>
+    <button type="button" data-goto="channels">4 渠道</button>
+    <button type="button" data-goto="diagnose">5 诊断</button>
+    <button type="button" data-goto="quiz">6 自测</button>
+  </nav>
+
+  <section class="step" data-panel="map">
+    <h2>事件进得来，报告才出得去</h2>
+    <p>旧资料里的 Hit、视图和「只看一页叫跳出」，在 GA4 里都换了说法。先把四个层次和八个词对齐，后面的计算才有地方放。</p>
+    <table>
+      <thead><tr><th>顺序</th><th>系统在做什么</th><th>Fieldnote</th></tr></thead>
+      <tbody>
+        <tr><td>1 采集</td><td>网站代码发送事件和参数</td><td>打开商品页，同时有 page_view 和 view_item</td></tr>
+        <tr><td>2 加工</td><td>把事件归到用户、会话、渠道</td><td>30 分钟内的连续事件算同一次会话</td></tr>
+        <tr><td>3 报告</td><td>标准报告做汇总，探索里自己拆</td><td>流量获取按这一次会话的来源拆</td></tr>
+        <tr><td>4 使用</td><td>关键事件进入受众和广告出价</td><td>只有 purchase 被标成关键事件</td></tr>
+      </tbody>
+    </table>
+    <h3>和旧说法对照</h3>
+    <table>
+      <thead><tr><th>旧说法</th><th>在 GA4 里</th></tr></thead>
+      <tbody>
+        <tr><td>一切都是 Hit</td><td>一切都是事件。page_view 只是其中一种</td></tr>
+        <tr><td>跳出 = 只看了一个页面</td><td>跳出 = 这次会话不是互动会话</td></tr>
+        <tr><td>转化目标</td><td>关键事件。旧称转化</td></tr>
+        <tr><td>视图</td><td>没有视图。用比较、探索，或子媒体资源</td></tr>
+        <tr><td>午夜切断会话；换广告活动也新开一轮</td><td>不按午夜切断。活动来源中途变化也不会因此新开一轮</td></tr>
+      </tbody>
+    </table>
+    <h3>八个会反复出现的词</h3>
+    <table>
+      <thead><tr><th>词</th><th>指什么</th></tr></thead>
+      <tbody>
+        <tr><td>事件 event</td><td>一次动作，例如 view_item 或 purchase</td></tr>
+        <tr><td>参数 parameter</td><td>事件附带的细节，例如 value、transaction_id、page_location</td></tr>
+        <tr><td>用户 user</td><td>这台浏览器或这个应用里被记住的身份，默认可跨会话</td></tr>
+        <tr><td>会话 session</td><td>一段连续活动。默认 30 分钟没有新事件就结束</td></tr>
+        <tr><td>维度 dimension</td><td>用来切开数据的属性，例如来源、着陆页、设备</td></tr>
+        <tr><td>指标 metric</td><td>被加总的数字，例如会话数、购买次数、收入</td></tr>
+        <tr><td>关键事件 key event</td><td>你标成重要的事件。本店只标 purchase</td></tr>
+        <tr><td>数据流 data stream</td><td>网站或 App 把数据送进同一个媒体资源的入口</td></tr>
+      </tbody>
+    </table>
+    <div id="q-unit"></div>
+    <hr>
+    <div id="q-scope"></div>
+    <p class="fine" id="pass-map"></p>
+  </section>
+
+  <section class="step" data-panel="events" hidden>
+    <h2>给购买漏斗起 GA4 认识的名字</h2>
+    <p>增强型衡量会自动收集 page_view、scroll、出站点击、站内搜索、视频和文件下载。它不会替你发出可靠的购买漏斗。下面五步，选择推荐事件，并决定它是不是本店的关键事件。</p>
+    <div class="note"><b>本店只把购买当转化</b><p>关键事件可以标很多个，但每多标一个，报告里的关键事件数就换了含义。Fieldnote 的出价和周报只认 purchase。加购、结账和订阅先作为普通事件留在漏斗里。</p></div>
+    <div id="journey"></div>
+    <p class="fine" id="pass-events"></p>
+  </section>
+
+  <section class="step" data-panel="metrics" hidden>
+    <h2>六个会话，把比率算出来</h2>
+    <p>下面是同一个下午的全部会话。购买两笔，各 $48，收入 $96。关键事件数是 2，收入是 96，这是两个指标。活跃用户是 4 个人，会话是 6 次，因为 A 和 C 各回来了一次。</p>
+    <table>
+      <thead><tr><th>指标</th><th>怎么算</th></tr></thead>
+      <tbody>
+        <tr><td>活跃用户</td><td>有互动会话，或采集到 first_visit / first_open 的去重人数</td></tr>
+        <tr><td>会话</td><td>从 session_start 到默认 30 分钟没有新事件</td></tr>
+        <tr><td>互动会话</td><td>时长超过阈值，或浏览至少 2 次，或出现关键事件</td></tr>
+        <tr><td>互动率</td><td>互动会话 / 会话</td></tr>
+        <tr><td>跳出率</td><td>非互动会话 / 会话，也就是 1 − 互动率</td></tr>
+        <tr><td>会话关键事件率</td><td>含有关键事件的会话 / 会话</td></tr>
+      </tbody>
+    </table>
+    <div class="row">
+      <label for="threshold">互动时长阈值</label>
+      <select id="threshold" style="width:auto">
+        <option value="10">默认 10 秒</option>
+        <option value="30">改成 30 秒</option>
+      </select>
+    </div>
+    <div class="sessions" id="session-strip"></div>
+    <div class="metric-stats">
+      <div><b id="m-engaged">0/6</b><span>互动会话</span></div>
+      <div><b id="m-eng">0%</b><span>互动率</span></div>
+      <div><b id="m-bounce">0%</b><span>跳出率</span></div>
+      <div><b id="m-key">0%</b><span>会话关键事件率</span></div>
+    </div>
+    <table>
+      <thead>
+        <tr>
+          <th>会话</th><th>用户</th><th>新用户</th>
+          <th class="num">时长（秒）</th><th class="num">浏览</th><th class="num">购买</th>
+          <th>为什么算互动</th>
+        </tr>
+      </thead>
+      <tbody id="visits"></tbody>
+    </table>
+    <p class="fine" id="metric-caption"></p>
+    <div id="metric-lesson"></div>
+    <div class="note"><b>会话什么时候结束</b><p>默认 30 分钟没有新事件就结束。GA4 不在午夜强制切断，活动来源中途变化也不会因此新开一轮。10 秒管的是「算不算互动」，不管会话边界。</p></div>
+    <div id="q-bounce6"></div>
+    <hr>
+    <div id="q-rate"></div>
+    <p class="fine" id="pass-metrics"></p>
+  </section>
+
+  <section class="step" data-panel="channels" hidden>
+    <h2>链接上的五个参数，决定报告里的渠道</h2>
+    <p>自然搜索通常不用你加 UTM，GA4 会写成 google / organic。广告、邮件和社交帖要自己写。来源回答「从哪来」，媒介回答「以什么方式」，广告系列回答「为了哪一次活动」。</p>
+    <div class="row" id="presets"></div>
+    <div class="fields">
+      <div><label for="f-source">utm_source 来源</label><input id="f-source" data-field="source" placeholder="newsletter"></div>
+      <div><label for="f-medium">utm_medium 媒介</label><input id="f-medium" data-field="medium" placeholder="email"></div>
+      <div><label for="f-campaign">utm_campaign 广告系列</label><input id="f-campaign" data-field="campaign" placeholder="october-restock"></div>
+      <div><label for="f-content">utm_content 素材</label><input id="f-content" data-field="content" placeholder="hero"></div>
+      <div><label for="f-term">utm_term 关键词</label><input id="f-term" data-field="term" placeholder="付费搜索才常用"></div>
+    </div>
+    <p class="fine">落地链接</p>
+    <p class="url" id="landing-url"></p>
+    <div id="channel-result"></div>
+    <div class="callout warn" id="warn-case" hidden><b>大小写会拆开你的来源</b><p>默认渠道组的匹配不区分大小写，Instagram 和 instagram 仍可能进同一个渠道组。但「会话来源」这个维度区分大小写，报表里会变成两行。命名用小写。</p></div>
+    <div class="callout warn" id="warn-space" hidden><b>空格会进到参数值里</b><p>链接里的空格会被编码。广告系列用连字符，例如 october-restock，不要写成带空格的词组。</p></div>
+    <h3>同一位顾客，两份报告</h3>
+    <table>
+      <thead><tr><th>报告</th><th>回答的问题</th><th>Maya</th></tr></thead>
+      <tbody>
+        <tr><td>用户获取</td><td>这个人第一次从哪来</td><td>google / cpc，付费搜索</td></tr>
+        <tr><td>流量获取</td><td>这一次会话从哪来</td><td>newsletter / email，邮件</td></tr>
+        <tr><td>用户默认渠道组</td><td>获客渠道</td><td>Paid Search</td></tr>
+        <tr><td>会话默认渠道组</td><td>本次会话的渠道</td><td>Email</td></tr>
+      </tbody>
+    </table>
+    <div id="q-maya"></div>
+    <p class="fine" id="pass-channels"></p>
+  </section>
+
+  <section class="step" data-panel="diagnose" hidden>
+    <h2>会话涨了，购买没有跟着涨</h2>
+    <p id="story"></p>
+    <div class="metric-stats" id="diag-stats"></div>
+    <h3>会话数，按默认渠道组</h3>
+    <p class="legend"><i class="swatch last"></i>上周会话<i class="swatch now"></i>本周会话</p>
+    <div id="session-chart"></div>
+    <p class="fine">条的长度是会话数，左侧是默认渠道组。Source: Fieldnote 教学案例 · 2026-10-26 至 2026-11-01，对比 2026-10-19 至 2026-10-25。</p>
+    <h3>本周会话关键事件率</h3>
+    <div id="rate-chart"></div>
+    <p class="fine" id="rate-caption"></p>
+    <table>
+      <thead>
+        <tr>
+          <th>渠道</th>
+          <th class="num">上周会话</th>
+          <th class="num">本周会话</th>
+          <th class="num">本周购买</th>
+          <th class="num">关键事件率</th>
+          <th class="num">互动率</th>
+        </tr>
+      </thead>
+      <tbody id="channel-rows"></tbody>
+    </table>
+    <h3>本周着陆页</h3>
+    <table>
+      <thead><tr><th>渠道</th><th>会话最多的着陆页</th><th class="num">占该渠道会话</th></tr></thead>
+      <tbody>
+        <tr class="hot"><td>付费社交</td><td>首页 /</td><td class="num">81%</td></tr>
+        <tr><td>自然搜索</td><td>商品页 /products/daily</td><td class="num">64%</td></tr>
+        <tr><td>邮件</td><td>商品页 /products/daily</td><td class="num">77%</td></tr>
+      </tbody>
+    </table>
+    <p class="fine">着陆页占比是这节课给定的分布，用来和渠道购买率对照。同一时间范围。</p>
+    <div id="q-cause"></div>
+    <hr>
+    <div id="q-next"></div>
+    <p class="fine" id="pass-diagnose"></p>
+  </section>
+
+  <section class="step" data-panel="quiz" hidden>
+    <h2>离开案例之后还能否认出来</h2>
+    <p>八题覆盖用户、互动、跳出、会话、渠道组和购买去重。答完会留下解析。6 题及以上，这一环节算通过。</p>
+    <div id="q-users"></div><hr>
+    <div id="q-engaged"></div><hr>
+    <div id="q-bounce"></div><hr>
+    <div id="q-timeout"></div><hr>
+    <div id="q-ig"></div><hr>
+    <div id="q-bad-medium"></div><hr>
+    <div id="q-which-report"></div><hr>
+    <div id="q-txid"></div>
+    <div id="quiz-end" hidden></div>
+  </section>
+
+  <p class="fine" style="margin-top:28px">Fieldnote 是教学案例。数字是为本课编制的，不是某个真实商店的 GA4 导出。</p>
+<script>
+const STORAGE_KEY = "fieldnote-ga-lab-v1";
+const BASE_URL = "https://fieldnote.example/products/daily";
+const SEARCH_SOURCES = ["google", "bing", "yahoo", "baidu", "duckduckgo", "ecosia", "yandex"];
+const SOCIAL_SOURCES = ["facebook", "fb", "instagram", "ig", "meta", "threads", "twitter", "x", "linkedin", "tiktok", "pinterest", "reddit", "snapchat", "weibo"];
+const VIDEO_SOURCES = ["youtube", "vimeo", "twitch"];
+const EVENT_OPTIONS = ["page_view", "view_item", "add_to_cart", "begin_checkout", "add_payment_info", "purchase", "generate_lead", "sign_up", "click"];
+const UTM_FIELDS = ["source", "medium", "campaign", "content", "term"];
+
+const JOURNEY = [
+  { id: "detail", action: "打开商品页", detail: "看到售价、纸张和库存。增强型衡量仍会另发 page_view。", event: "view_item", key: false, params: "items、item_id、item_name、price", why: "商品分析要看 view_item 和 items。page_view 只说明有一次浏览，不知道看的是哪本本子。这一步先不要标成关键事件。" },
+  { id: "cart", action: "放进购物车", detail: "数量是 1，币种 USD。", event: "add_to_cart", key: false, params: "items、value、currency", why: "加购是漏斗中段。如果把它和购买都标成关键事件，关键事件数会被加购撑大，购买看起来变好或变差都失真。" },
+  { id: "checkout", action: "点击去结账", detail: "离开商品页，进入结账。", event: "begin_checkout", key: false, params: "items、value、currency", why: "begin_checkout 标出结账开始。它和 add_to_cart 之间的落差，就是购物车放弃。还没付款，不要当成转化。" },
+  { id: "pay", action: "付款成功，确认页加载", detail: "订单号 FT-20481，金额 $48。", event: "purchase", key: true, params: "transaction_id、value、currency、items", why: "只在确认页发送 purchase，并标成关键事件。transaction_id 用来去重，刷新确认页不应再算一单。" },
+  { id: "mail", action: "在页脚留下邮箱，订阅上新", detail: "没有创建账号，也没有付款。", event: "generate_lead", key: false, params: "form_id 或 method", why: "这是一条线索，不是购买，也不是 sign_up。本店只把 purchase 当作关键事件。订阅单独看事件数，需要时再另建。" }
+];
+
+const VISITS = [
+  { id: "1", user: "A", isNew: true, seconds: 84, views: 4, purchases: 1 },
+  { id: "2", user: "A", isNew: false, seconds: 6, views: 1, purchases: 0 },
+  { id: "3", user: "B", isNew: true, seconds: 22, views: 1, purchases: 0 },
+  { id: "4", user: "C", isNew: true, seconds: 4, views: 1, purchases: 0 },
+  { id: "5", user: "C", isNew: false, seconds: 40, views: 2, purchases: 0 },
+  { id: "6", user: "D", isNew: true, seconds: 8, views: 1, purchases: 1 }
+];
+
+const CHANNELS = [
+  { name: "自然搜索", lastSessions: 1820, lastPurchases: 52, sessions: 1740, purchases: 49, engagement: 0.67 },
+  { name: "直接访问", lastSessions: 980, lastPurchases: 24, sessions: 1010, purchases: 23, engagement: 0.54 },
+  { name: "邮件", lastSessions: 420, lastPurchases: 16, sessions: 400, purchases: 14, engagement: 0.7 },
+  { name: "付费社交", lastSessions: 620, lastPurchases: 2, sessions: 2680, purchases: 5, engagement: 0.29 },
+  { name: "引荐", lastSessions: 360, lastPurchases: 2, sessions: 350, purchases: 0, engagement: 0.46 }
+];
+
+const PRESETS = [
+  { id: "ads", label: "搜索广告", utm: { source: "google", medium: "cpc", campaign: "brand-search", content: "rsa-a", term: "fieldnote-notebook" } },
+  { id: "pmax", label: "效果最大化", utm: { source: "google", medium: "cpc", campaign: "pmax-cross-network", content: "", term: "" } },
+  { id: "email", label: "邮件", utm: { source: "newsletter", medium: "email", campaign: "october-restock", content: "hero", term: "" } },
+  { id: "paid-social", label: "社交付费", utm: { source: "instagram", medium: "paid", campaign: "spring-launch", content: "reel-1", term: "" } },
+  { id: "bad", label: "错误媒介", utm: { source: "Instagram", medium: "social-ad", campaign: "Spring Launch", content: "", term: "" } },
+  { id: "direct", label: "直接访问", utm: { source: "", medium: "", campaign: "", content: "", term: "" } }
+];
+
+const QUESTIONS = {
+  unit: { prompt: "GA4 收集数据的基本单位是什么？", options: [["hit", "Hit，一次命中"], ["event", "事件。页面浏览也是事件"], ["session", "会话。没有会话就不记录"], ["page", "页面。每个 URL 一行"]], correct: "event", why: "GA4 是事件模型。session_start、page_view、scroll、purchase 都是事件。用户和会话是用这些事件推出来的，不是先有会话再往里填命中。" },
+  scope: { prompt: "同一个人第一次从广告来，今天从邮件回来。这两次来源分别看哪份报告？", options: [["pair", "用户获取看首次，流量获取看这一次会话"], ["traffic", "两份都看流量获取"], ["realtime", "只看实时报告"], ["debug", "只看 DebugView"]], correct: "pair", why: "用户获取锚定第一次接触。流量获取锚定产生这一次会话的来源。Maya 第一次是付费搜索，今天这次购买会话是邮件，两份报告会各记各的。" },
+  bounce6: { prompt: "会话 6 只有 8 秒，但有一笔购买。阈值仍是默认 10 秒时，它算跳出吗？", options: [["yes-time", "算。不到 10 秒就是跳出"], ["no-key", "不算。关键事件使它成为互动会话"], ["yes-page", "算。只有一次浏览"], ["drop", "购买太快，事件会被丢弃"]], correct: "no-key", why: "互动会话满足任一条件即可：超过阈值、至少两次浏览、或出现关键事件。购买把这次短会话从跳出里救出来。跳出率看的是会话质地，不是停留越短越算跳出。" },
+  rate: { prompt: "按默认 10 秒，这 6 次会话的跳出率是多少？", options: [["33", "33%。有 2 次不是互动会话"], ["50", "50%。一半用户没有购买"], ["17", "17%。只有 1 次低于 10 秒"], ["0", "0%。每个用户都留下了事件"]], correct: "33", why: "不互动的是会话 2 和会话 4。跳出率 = 非互动会话 / 会话 = 2/6。用户数和购买数都不进这个公式。把阈值改成 30 秒后比率会变，题干锁的是默认值。" },
+  maya: { prompt: "Maya 3 月 12 日第一次从 Google 搜索广告进入。3 月 20 日从月报邮件回来并购买。流量获取里，这次购买会话记成什么？", options: [["email", "邮件。看的是这一次会话的来源"], ["ads", "付费搜索。购买要算回头客的首次来源"], ["direct", "直接访问。邮件客户端经常把来源弄丢"], ["split", "广告和邮件各记一半"]], correct: "email", why: "流量获取看的是产生这一次会话的来源，所以是邮件。她的首次来源仍是付费搜索，那一笔记在用户获取。两份报告回答的不是同一个问题。邮件链接要带上 utm_medium=email，否则这次回来可能变成直接访问。" },
+  cause: { prompt: "会话多了将近一半，购买几乎没涨。主因是什么？", options: [["broken", "购买追踪坏了，全站关键事件失效"], ["mix", "多出来的主要是付费社交，而这组会话很少买"], ["seo", "自然搜索被惩罚，购买因此下降"], ["direct", "直接流量被重复计算，把会话抬高了"]], correct: "mix", why: "自然搜索、直接访问和邮件的购买都还在，所以不是全站追踪失效。自然搜索只少了 80 次会话，解释不了新增的大约 2,000 次。新增几乎都在付费社交：2,680 次会话、5 次购买、关键事件率 0.2%、互动率 29%。全站比率是被这组流量稀释的。" },
+  next: { prompt: "下一步最值得先看的是什么？", options: [["landing", "付费社交点进来之后是否落在首页"], ["mark", "把 page_view 标成关键事件，让转化变多"], ["timeout", "把会话超时改成 4 小时"], ["drop", "停掉自然搜索，因为它少了 3 单"]], correct: "landing", why: "付费社交 81% 的会话进了首页，自然搜索多数进商品页。先看广告点击后的页面和素材是否在讲这本笔记本。把 page_view 标成关键事件只会让比率失真。会话超时也解释不了渠道之间的购买率差距。" },
+  users: { prompt: "1. GA4 标准报告里的 Users，默认主要是哪一个？", options: [["active", "活跃用户 Active users"], ["total", "总用户 Total users"], ["new", "新用户 New users"], ["paid", "有购买的用户"]], correct: "active", why: "报告里的 Users 指活跃用户：有过互动会话，或采集到 first_visit / first_open。总用户和新用户是另外的指标。" },
+  engaged: { prompt: "2. 下面哪一条并不足以把会话算成互动会话？", options: [["time", "持续超过互动阈值，默认 10 秒"], ["views", "至少 2 次网页或屏幕浏览"], ["key", "触发了关键事件"], ["one", "只发生了 1 次 page_view"]], correct: "one", why: "一次浏览本身不够。互动要超过时长阈值、至少两次浏览，或者出现关键事件。只看一页就走的短访问，正是 GA4 跳出率要抓住的那一类。" },
+  bounce: { prompt: "3. GA4 的跳出率等于什么？", options: [["unengaged", "非互动会话占全部会话的比例"], ["single", "只浏览了一个页面的会话占比"], ["leave", "离开网站的用户占比"], ["cvr", "1 减去购买率"]], correct: "unengaged", why: "跳出率 = 1 − 互动率。它不再等于 Universal Analytics 里的「单页会话占比」。一次浏览若超过 10 秒，或发生了购买，都不算跳出。" },
+  timeout: { prompt: "4. 默认情况下，会话在无活动多久后结束？", options: [["30m", "30 分钟"], ["10s", "10 秒"], ["midnight", "到当天午夜强制切断"], ["24h", "24 小时"]], correct: "30m", why: "默认超时是 30 分钟。10 秒是互动阈值，不是会话长度。GA4 也不在午夜把会话切断，这一点和 Universal Analytics 不同。" },
+  ig: { prompt: "5. source = instagram，medium = cpc。默认渠道组是？", options: [["ps", "Paid Social 付费社交"], ["search", "Paid Search 付费搜索"], ["os", "Organic Social 自然社交"], ["ref", "Referral 引荐"]], correct: "ps", why: "付费媒介加上社交来源，进付费社交。cpc 不会把所有来源都送进付费搜索。付费搜索还要求来源是搜索引擎，例如 google 或 bing。" },
+  "bad-medium": { prompt: "6. 来源 tiktok，媒介写成 social-ad。最常见的归类是？", options: [["unassigned", "Unassigned 未分配"], ["os", "Organic Social"], ["ps", "Paid Social"], ["display", "Display"]], correct: "unassigned", why: "social-ad 既不是 social / sm 这类自然社交媒介，也不匹配 cpc、paid 这类付费媒介。自定义词经常掉进未分配。要付费，媒介写成 paid 或 cpc。" },
+  "which-report": { prompt: "7. 首次来自广告，这次从邮件回来才购买。流量获取里，购买发生的这次会话来源是？", options: [["email", "邮件"], ["ads", "付费搜索"], ["direct", "直接访问"], ["half", "两个渠道各一半"]], correct: "email", why: "流量获取按本次会话的来源归因。首次来源留在用户获取里。购买不会自动改回这个人第一次是从哪来的。" },
+  txid: { prompt: "8. purchase 为什么需要 transaction_id？", options: [["dedupe", "刷新确认页时，避免同一订单再计一次"], ["key", "有了它，事件才会变成关键事件"], ["currency", "用它代替 currency"], ["session", "用它生成 session id"]], correct: "dedupe", why: "关键事件是你在后台标的，不靠某个参数自动升级。transaction_id 让同一笔订单在重复加载时被去重。金额仍要单独传 value 和 currency。" }
+};
+
+const QUIZ_IDS = ["users", "engaged", "bounce", "timeout", "ig", "bad-medium", "which-report", "txid"];
+
+function emptyState() {
+  return { step: "map", answers: {}, events: {}, keys: {}, threshold: "10", utm: { source: "", medium: "", campaign: "", content: "", term: "" } };
+}
+
+function loadState() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "null");
+    if (!saved || typeof saved !== "object") return emptyState();
+    const base = emptyState();
+    base.step = saved.step || "map";
+    base.answers = saved.answers || {};
+    base.events = saved.events || {};
+    base.keys = saved.keys || {};
+    base.threshold = saved.threshold === "30" ? "30" : "10";
+    base.utm = { ...base.utm, ...(saved.utm || {}) };
+    return base;
+  } catch (error) {
+    return emptyState();
+  }
+}
+
+let state = loadState();
+
+function save() {
+  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+}
+
+function esc(value) {
+  return String(value).replace(/[&<>"']/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[ch]));
+}
+
+function round1(value) {
+  return Math.round(value * 10) / 10;
+}
+
+function signedPct(now, then) {
+  const points = Math.round(((now - then) / then) * 100);
+  return points > 0 ? "+" + points + "%" : points + "%";
+}
+
+function isEngaged(visit, threshold) {
+  return visit.seconds > threshold || visit.views >= 2 || visit.purchases > 0;
+}
+
+function engagedReason(visit, threshold) {
+  const parts = [];
+  if (visit.seconds > threshold) parts.push("超过 " + threshold + " 秒");
+  if (visit.views >= 2) parts.push("浏览至少 2 次");
+  if (visit.purchases > 0) parts.push("有购买");
+  return parts.length ? parts.join("、") : "否";
+}
+
+function normSource(raw) {
+  return raw.trim().toLowerCase().replace(/^https?:\/\//, "").replace(/^www\./, "").replace(/\/.*$/, "");
+}
+
+function classify(utm) {
+  const source = normSource(utm.source);
+  const medium = utm.medium.trim().toLowerCase();
+  const campaign = utm.campaign.trim().toLowerCase();
+  const paid = /^(.*cp.*|ppc|retargeting|paid.*)$/.test(medium);
+  const socialMedium = /^(social|social-network|social-media|sm|social network|social media)$/.test(medium);
+  const display = /^(display|cpm|banner)$/.test(medium);
+  const emptyMedium = medium === "" || medium === "(none)" || medium === "(not set)" || medium === "none";
+  const directSource = source === "" || source === "(direct)" || source === "direct";
+  if (directSource && emptyMedium) return { channel: "Direct", rule: "来源是 direct 或为空，媒介也空着。没有活动参数的访问，GA4 常常记成 (direct) / (none)。" };
+  if (campaign.includes("cross-network")) return { channel: "Cross-network", rule: "广告系列名包含 cross-network，这条优先于付费搜索。所以 google / cpc 也会进跨网络，而不是付费搜索。效果最大化常用这种命名。" };
+  if (paid && SEARCH_SOURCES.includes(source)) return { channel: "Paid Search", rule: "媒介匹配 cpc、ppc 或 paid，来源是搜索引擎。google / cpc 是付费搜索。来源写成 google，不会自动变成自然搜索。" };
+  if (paid && SOCIAL_SOURCES.includes(source)) return { channel: "Paid Social", rule: "付费媒介加上社交平台来源。instagram / cpc 或 instagram / paid 进付费社交，不会因为写了 cpc 就进付费搜索。" };
+  if (paid && VIDEO_SOURCES.includes(source)) return { channel: "Paid Video", rule: "付费媒介加上视频平台来源，例如 youtube / cpc。" };
+  if (display) return { channel: "Display", rule: "媒介是 display、cpm 或 banner。" };
+  if (paid) return { channel: "Paid Other", rule: "媒介像付费，但来源不在搜索、社交或视频的教学名单里。真实渠道组还有更长的来源名单。" };
+  if (SOCIAL_SOURCES.includes(source) && (socialMedium || emptyMedium)) return { channel: "Organic Social", rule: "社交来源，媒介是 social、sm，或者没写媒介。付费不要指望平台名自己代表付钱，媒介得写成 paid 或 cpc。" };
+  if (VIDEO_SOURCES.includes(source) && (medium === "organic" || medium === "video" || emptyMedium)) return { channel: "Organic Video", rule: "视频平台来源，且媒介不是付费。" };
+  if (SEARCH_SOURCES.includes(source) && medium === "organic") return { channel: "Organic Search", rule: "搜索引擎来源，媒介恰好是 organic。这通常由 GA4 识别推荐来源后自动写入，不需要你在自然结果的链接上加 UTM。" };
+  if (medium === "referral") return { channel: "Referral", rule: "媒介是 referral。从别的网站点过来、又没有活动参数时，系统常用这个值。" };
+  if (medium === "email" || medium === "e-mail") return { channel: "Email", rule: "媒介是 email。来源写名单或工具的名字，例如 newsletter，不要把来源也写成 email。" };
+  if (medium === "affiliate") return { channel: "Affiliates", rule: "媒介是 affiliate。" };
+  if (medium === "sms") return { channel: "SMS", rule: "媒介是 sms。" };
+  return { channel: "Unassigned", rule: "没有命中这条教学规则。social-ad、post、wechat 这类自造媒介经常掉在这里。要么改成标准媒介，要么以后在渠道组里加自己的规则。" };
+}
+
+function buildUrl(utm) {
+  const pairs = [["utm_source", utm.source], ["utm_medium", utm.medium], ["utm_campaign", utm.campaign], ["utm_content", utm.content], ["utm_term", utm.term]].filter((pair) => pair[1].trim() !== "");
+  if (!pairs.length) return BASE_URL;
+  return BASE_URL + "?" + pairs.map((pair) => pair[0] + "=" + encodeURIComponent(pair[1].trim())).join("&");
+}
+
+function score(ids) {
+  return ids.filter((id) => state.answers[id] === QUESTIONS[id].correct).length;
+}
+
+function eventPoints() {
+  return JOURNEY.filter((item) => state.events[item.id] === item.event && state.keys[item.id] === (item.key ? "yes" : "no")).length;
+}
+
+function renderQuestion(id) {
+  const question = QUESTIONS[id];
+  const value = state.answers[id] || "";
+  const picked = value !== "";
+  const ok = value === question.correct;
+  const host = document.getElementById("q-" + id);
+  host.innerHTML = '<p class="prompt">' + esc(question.prompt) + "</p>" + question.options.map((option) => {
+    return '<button type="button" class="choice" data-answer="' + esc(id) + '" data-choice="' + esc(option[0]) + '" aria-pressed="' + (value === option[0]) + '">' + esc(option[1]) + "</button>";
+  }).join("") + (picked ? '<div class="callout ' + (ok ? "ok" : "warn") + '"><b>' + (ok ? "对" : "解析") + "</b><p>" + esc(question.why) + "</p></div>" : "");
+}
+
+function showStep(step) {
+  const known = ["map", "events", "metrics", "channels", "diagnose", "quiz"];
+  state.step = known.includes(step) ? step : "map";
+  save();
+  document.querySelectorAll(".step").forEach((section) => {
+    section.hidden = section.dataset.panel !== state.step;
+  });
+  document.querySelectorAll("[data-goto]").forEach((button) => {
+    if (button.dataset.goto === state.step) button.setAttribute("aria-current", "page");
+    else button.removeAttribute("aria-current");
+  });
+}
+
+function renderJourney() {
+  document.getElementById("journey").innerHTML = JOURNEY.map((item, index) => {
+    return '<div class="event"><p class="prompt">' + (index + 1) + ". " + esc(item.action) + '</p><p class="fine">' + esc(item.detail) + " 建议参数：" + esc(item.params) + '。</p><div class="row"><select data-event="' + item.id + '" aria-label="' + esc(item.action) + '"></select><button type="button" class="chip" data-key="' + item.id + '" data-value="yes">标为关键事件</button><button type="button" class="chip" data-key="' + item.id + '" data-value="no">保持普通事件</button></div><div id="fb-' + item.id + '"></div>' + (index < JOURNEY.length - 1 ? "<hr>" : "") + "</div>";
+  }).join("");
+  document.querySelectorAll("[data-event]").forEach((select) => {
+    select.innerHTML = '<option value="">选择事件</option>' + EVENT_OPTIONS.map((name) => '<option value="' + name + '">' + name + "</option>").join("");
+    select.value = state.events[select.dataset.event] || "";
+  });
+}
+
+function renderEventFeedback() {
+  JOURNEY.forEach((item) => {
+    const pick = state.events[item.id] || "";
+    const key = state.keys[item.id] || "";
+    const host = document.getElementById("fb-" + item.id);
+    const answered = pick !== "" && (key === "yes" || key === "no");
+    const ok = pick === item.event && key === (item.key ? "yes" : "no");
+    host.innerHTML = answered ? '<div class="callout ' + (ok ? "ok" : "warn") + '"><b>' + (ok ? "这样记" : "还没对齐") + "</b><p>" + esc(item.why) + "</p></div>" : "";
+    document.querySelectorAll('[data-key="' + item.id + '"]').forEach((button) => {
+      button.setAttribute("aria-pressed", String(button.dataset.value === key));
+    });
+  });
+}
+
+function updateMetrics() {
+  const seconds = state.threshold === "30" ? 30 : 10;
+  const engagedCount = VISITS.filter((visit) => isEngaged(visit, seconds)).length;
+  const engagementRate = engagedCount / VISITS.length;
+  const bounceRate = 1 - engagementRate;
+  const keyEventRate = VISITS.filter((visit) => visit.purchases > 0).length / VISITS.length;
+  document.getElementById("threshold").value = String(seconds);
+  document.getElementById("m-engaged").textContent = engagedCount + "/6";
+  document.getElementById("m-eng").textContent = round1(engagementRate * 100) + "%";
+  document.getElementById("m-bounce").textContent = round1(bounceRate * 100) + "%";
+  document.getElementById("m-key").textContent = round1(keyEventRate * 100) + "%";
+  document.getElementById("session-strip").innerHTML = VISITS.map((visit) => {
+    const engaged = isEngaged(visit, seconds);
+    return '<div class="cell ' + (engaged ? "on" : "off") + '"><b>会话 ' + visit.id + "</b><span>" + visit.user + " · " + visit.seconds + " 秒</span><span>" + (engaged ? "互动" : "跳出") + (visit.purchases ? " · 购买" : "") + "</span></div>";
+  }).join("");
+  document.getElementById("visits").innerHTML = VISITS.map((visit) => {
+    const engaged = isEngaged(visit, seconds);
+    return "<tr" + (engaged ? "" : ' class="hot"') + "><td>" + visit.id + "</td><td>" + visit.user + "</td><td>" + (visit.isNew ? "是" : "否") + '</td><td class="num">' + visit.seconds + '</td><td class="num">' + visit.views + '</td><td class="num">' + visit.purchases + "</td><td>" + esc(engagedReason(visit, seconds)) + "</td></tr>";
+  }).join("");
+  document.getElementById("metric-caption").textContent = "时长单位是秒。购买列是 purchase 次数。互动判定使用当前阈值 " + seconds + " 秒。Source: Fieldnote 教学样本，一个下午的 6 次会话。";
+  document.getElementById("metric-lesson").innerHTML = seconds === 10
+    ? '<div class="callout ok"><b>两个 33% 不是同一批会话</b><p>默认 10 秒时，跳出率是 33%，会话关键事件率也是 33%。不互动的是会话 2 和 4；带来购买的是会话 1 和 6。</p></div>'
+    : '<div class="callout ok"><b>阈值变了，购买没有被删掉</b><p>改成 30 秒后，会话 3 不再算互动，跳出率变成 50%。会话 6 仍因购买而算互动。关键事件率还是 33%，购买次数不随这个阈值变化。</p></div>';
+}
+
+function sameUtm(a, b) {
+  return UTM_FIELDS.every((field) => a[field] === b[field]);
+}
+
+function updateChannel(syncInputs) {
+  if (syncInputs) {
+    UTM_FIELDS.forEach((field) => {
+      document.querySelector('[data-field="' + field + '"]').value = state.utm[field];
+    });
+  }
+  document.getElementById("landing-url").textContent = buildUrl(state.utm);
+  const result = classify(state.utm);
+  document.getElementById("channel-result").innerHTML = '<div class="callout ' + (result.channel === "Unassigned" ? "warn" : "ok") + '"><b>' + esc(result.channel) + "</b><p>" + esc(result.rule) + "</p></div>";
+  document.getElementById("warn-case").hidden = !UTM_FIELDS.some((field) => /[A-Z]/.test(state.utm[field]));
+  document.getElementById("warn-space").hidden = !UTM_FIELDS.some((field) => /\s/.test(state.utm[field]));
+  document.querySelectorAll("[data-preset]").forEach((button) => {
+    const preset = PRESETS.find((item) => item.id === button.dataset.preset);
+    button.setAttribute("aria-pressed", String(preset && sameUtm(state.utm, preset.utm)));
+  });
+}
+
+function renderDiagnosis() {
+  const lastSessions = CHANNELS.reduce((sum, channel) => sum + channel.lastSessions, 0);
+  const currentSessions = CHANNELS.reduce((sum, channel) => sum + channel.sessions, 0);
+  const lastPurchases = CHANNELS.reduce((sum, channel) => sum + channel.lastPurchases, 0);
+  const currentPurchases = CHANNELS.reduce((sum, channel) => sum + channel.purchases, 0);
+  const siteRate = round1((currentPurchases / currentSessions) * 100);
+  const lastSiteRate = round1((lastPurchases / lastSessions) * 100);
+  const paid = CHANNELS.find((channel) => channel.name === "付费社交");
+  const paidShare = Math.round((paid.sessions / currentSessions) * 100);
+  document.getElementById("story").textContent = "Fieldnote 本周（10 月 26 日–11 月 1 日）对比前一周。全站会话 " + signedPct(currentSessions, lastSessions) + "，购买 " + signedPct(currentPurchases, lastPurchases) + "。会话关键事件率从 " + lastSiteRate + "% 降到 " + siteRate + "%。付费社交占本周会话的 " + paidShare + "%。";
+  document.getElementById("diag-stats").innerHTML = "<div><b>" + currentSessions.toLocaleString("en-US") + '</b><span>本周会话</span></div><div><b>' + signedPct(currentSessions, lastSessions) + '</b><span>会话较上周</span></div><div><b>' + currentPurchases + '</b><span>本周购买</span></div><div><b>' + siteRate + "%</b><span>本周会话关键事件率</span></div>";
+  const maxSessions = Math.max.apply(null, CHANNELS.flatMap((channel) => [channel.lastSessions, channel.sessions]));
+  document.getElementById("session-chart").innerHTML = CHANNELS.map((channel) => {
+    return '<div class="grow"><div class="grow-label">' + esc(channel.name) + '</div><div><div class="grow-line"><div class="grow-track"><div class="grow-bar" style="width:' + (channel.lastSessions / maxSessions * 100) + '%"></div></div><span class="grow-n">' + channel.lastSessions.toLocaleString("en-US") + '</span></div><div class="grow-line"><div class="grow-track"><div class="grow-bar now" style="width:' + (channel.sessions / maxSessions * 100) + '%"></div></div><span class="grow-n">' + channel.sessions.toLocaleString("en-US") + "</span></div></div></div>";
+  }).join("");
+  const maxRate = 4;
+  document.getElementById("rate-chart").innerHTML = CHANNELS.map((channel) => {
+    const rate = round1((channel.purchases / channel.sessions) * 100);
+    return '<div class="grow"><div class="grow-label">' + esc(channel.name) + '</div><div class="grow-line"><div class="rate-track"><i class="mark" style="left:' + (siteRate / maxRate * 100) + '%"></i><div class="bar" style="width:' + (rate / maxRate * 100) + '%"></div></div><span class="grow-n">' + rate + "%</span></div></div>";
+  }).join("");
+  document.getElementById("rate-caption").textContent = "条的长度是会话关键事件率（%），等于该渠道购买次数 / 该渠道会话数。褐色竖线是全站 " + siteRate + "%。横轴画到 4%，方便看出付费社交接近 0。同一时间范围。";
+  document.getElementById("channel-rows").innerHTML = CHANNELS.map((channel) => {
+    const rate = round1((channel.purchases / channel.sessions) * 100);
+    return '<tr' + (channel.name === "付费社交" ? ' class="hot"' : "") + "><td>" + esc(channel.name) + '</td><td class="num">' + channel.lastSessions.toLocaleString("en-US") + '</td><td class="num">' + channel.sessions.toLocaleString("en-US") + '</td><td class="num">' + channel.purchases + '</td><td class="num">' + rate + '%</td><td class="num">' + Math.round(channel.engagement * 100) + "%</td></tr>";
+  }).join("");
+}
+
+function updateProgress() {
+  const mapScore = score(["unit", "scope"]);
+  const events = eventPoints();
+  const metricScore = score(["bounce6", "rate"]);
+  const channelScore = state.answers.maya === QUESTIONS.maya.correct ? 1 : 0;
+  const diagScore = score(["cause", "next"]);
+  const quizScore = score(QUIZ_IDS);
+  const quizAnswered = QUIZ_IDS.filter((id) => state.answers[id]).length;
+  const passed = [
+    mapScore === 2,
+    events === JOURNEY.length,
+    metricScore === 2,
+    channelScore === 1,
+    diagScore === 2,
+    quizAnswered === QUIZ_IDS.length && quizScore >= 6
+  ].filter(Boolean).length;
+  document.getElementById("done").textContent = passed + "/6";
+  document.getElementById("event-points").textContent = events + "/5";
+  document.getElementById("quiz-points").textContent = quizScore + "/8";
+  document.getElementById("pass-map").textContent = "两题都对，这一环节通过。当前 " + mapScore + "/2。";
+  document.getElementById("pass-events").textContent = "事件名和关键事件取舍都对，才算这一步通过。当前 " + events + "/5。";
+  document.getElementById("pass-metrics").textContent = "两题都对，这一环节通过。当前 " + metricScore + "/2。";
+  document.getElementById("pass-channels").textContent = channelScore ? "这一题答对了，渠道环节通过。" : "答对 Maya 这一题，渠道环节通过。";
+  document.getElementById("pass-diagnose").textContent = "两题都对，诊断环节通过。当前 " + diagScore + "/2。";
+  const ending = document.getElementById("quiz-end");
+  if (quizAnswered === QUIZ_IDS.length) {
+    ending.hidden = false;
+    const ok = quizScore >= 6;
+    ending.className = "callout " + (ok ? "ok" : "warn");
+    ending.innerHTML = "<b>" + (ok ? "可以去看真实后台了" : "先回到没对上的环节") + "</b><p>" + (ok
+      ? "打开流量获取、着陆页和事件三份报告。先确认 purchase 有 transaction_id，再看本周新增会话落在哪个渠道、哪个页面。"
+      : "用户和跳出回到指标，渠道组回到渠道，购买去重回到事件。改完答案，得分会跟着变。") + "</p>";
+  } else {
+    ending.hidden = true;
+  }
+}
+
+function applyPreset(id) {
+  const preset = PRESETS.find((item) => item.id === id);
+  if (!preset) return;
+  state.utm = { ...preset.utm };
+  save();
+  updateChannel(true);
+}
+
+document.getElementById("presets").innerHTML = PRESETS.map((preset) => {
+  return '<button type="button" class="chip" data-preset="' + preset.id + '">' + esc(preset.label) + "</button>";
+}).join("");
+
+renderJourney();
+renderDiagnosis();
+Object.keys(QUESTIONS).forEach(renderQuestion);
+updateMetrics();
+updateChannel(true);
+renderEventFeedback();
+updateProgress();
+showStep(state.step);
+
+document.body.addEventListener("click", (event) => {
+  const goto = event.target.closest("[data-goto]");
+  if (goto) {
+    showStep(goto.dataset.goto);
+    return;
+  }
+  const preset = event.target.closest("[data-preset]");
+  if (preset) {
+    applyPreset(preset.dataset.preset);
+    return;
+  }
+  const key = event.target.closest("[data-key]");
+  if (key) {
+    state.keys[key.dataset.key] = key.dataset.value;
+    save();
+    renderEventFeedback();
+    updateProgress();
+    return;
+  }
+  const choice = event.target.closest("[data-answer]");
+  if (choice) {
+    state.answers[choice.dataset.answer] = choice.dataset.choice;
+    save();
+    renderQuestion(choice.dataset.answer);
+    updateProgress();
+  }
+});
+
+document.body.addEventListener("change", (event) => {
+  if (event.target.dataset.event) {
+    state.events[event.target.dataset.event] = event.target.value;
+    save();
+    renderEventFeedback();
+    updateProgress();
+  }
+  if (event.target.id === "threshold") {
+    state.threshold = event.target.value;
+    save();
+    updateMetrics();
+  }
+});
+
+document.body.addEventListener("input", (event) => {
+  if (!event.target.dataset.field) return;
+  state.utm[event.target.dataset.field] = event.target.value;
+  save();
+  updateChannel(false);
+});
+</script>
+</body>
+</html>
